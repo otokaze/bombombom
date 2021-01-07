@@ -16,10 +16,12 @@ import (
 
 	"github.com/otokaze/go-kit/log"
 	"github.com/urfave/cli/v2"
+	"golang.org/x/time/rate"
 )
 
 var (
 	proxyIP *IPInfo
+	limit   = rate.NewLimiter(rate.Every(time.Minute), 1)
 	choice  = []string{"Macintosh", "Windows", "X11"}
 	choice2 = []string{"68K", "PPC", "Intel Mac OS X"}
 	choice3 = []string{"Win3.11", "WinNT3.51", "WinNT4.0", "Windows NT 5.0", "Windows NT 5.1", "Windows NT 5.2", "Windows NT 6.0", "Windows NT 6.1", "Windows NT 6.2", "Win 9x 4.90", "WindowsCE", "Windows XP", "Windows 7", "Windows 8", "Windows NT 10.0; Win64; x64"}
@@ -66,7 +68,7 @@ func ddosAction(ctx *cli.Context) (err error) {
 	)
 	for c := ctx.Int("concurrency"); c > 0; c-- {
 		wg.Add(1)
-		go func() {
+		go func() (err error) {
 			defer wg.Done()
 			for {
 				if atomic.LoadInt64(&n) <= 0 {
@@ -173,6 +175,9 @@ func resetErrs() {
 }
 
 func setProxyIP(pack string) (err error) {
+	if !limit.Allow() {
+		return
+	}
 	var ip *IPInfo
 	if ip, err = GetProxyIP(pack); err != nil {
 		return
@@ -208,7 +213,7 @@ func newHTTPCli() *http.Client {
 		trans.Proxy = http.ProxyURL(u)
 	}
 	return &http.Client{
-		Timeout:   5 * time.Second,
+		Timeout:   10 * time.Second,
 		Transport: trans,
 	}
 }
